@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <title>Search — <%= project.name %></title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div class="container">
+    <a href="/projects/<%= project.id %>">&larr; กลับโปรเจกต์</a>
+    <h1>Semantic search — <%= project.name %></h1>
+    <p class="muted">ค้นจาก vector มิติสูงใน Qdrant (bge-m3) ไม่ใช่พิกัด 2D บนแผนที่ taxonomy</p>
+
+    <div class="card">
+      <form method="get" action="/projects/<%= project.id %>/search">
+        <input type="text" name="q" value="<%= query %>" placeholder="พิมพ์คำค้นหา..." required />
+        <button type="submit">ค้นหา</button>
+      </form>
+    </div>
+
+    <% if (results) { %>
+      <div class="card">
+        <h3>ผลลัพธ์สำหรับ "<%= results.query %>"</h3>
+        <% if (results.hits.length === 0) { %>
+          <p class="muted">ไม่พบผลลัพธ์ — ต้องรัน pipeline อย่างน้อย 1 ครั้งก่อน (embedding จะถูก upsert เข้า Qdrant ตอนรัน)</p>
+        <% } else { %>
+          <table>
+            <thead><tr><th>score</th><th>หน้า</th><th>เนื้อหา</th></tr></thead>
+            <tbody>
+              <% results.hits.forEach(function (h) { %>
+                <tr>
+                  <td><%= h.score.toFixed(3) %></td>
+                  <td><%= h.page_number ?? '-' %></td>
+                  <td><%= h.text %></td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        <% } %>
+      </div>
+    <% } %>
+  </div>
+</body>
+</html>

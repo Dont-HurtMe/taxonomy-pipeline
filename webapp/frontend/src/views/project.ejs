@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <title><%= project.name %> — Taxonomy Pipeline</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div class="container">
+    <a href="/">&larr; โปรเจกต์ทั้งหมด</a>
+    <h1><%= project.name %></h1>
+    <p class="muted"><%= project.description %></p>
+
+    <div class="card">
+      <h3>อัปโหลดเอกสาร (PDF หรือ .txt)</h3>
+      <form method="post" action="/projects/<%= project.id %>/documents" enctype="multipart/form-data">
+        <input type="file" name="file" accept=".pdf,.txt" required />
+        <button type="submit">อัปโหลด</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>นำเข้า list[str] ตรง ๆ (เช่นจาก pandas)</h3>
+      <p class="muted">
+        เทียบเท่า <code>texts = df["content"].dropna().astype(str).tolist()</code> แล้วส่งเข้าระบบ —
+        หรือเรียก <code>POST /api/projects/<%= project.id %>/texts</code> เองจาก script ก็ได้ (body: <code>{"texts": [...]}</code>)
+      </p>
+      <form method="post" action="/projects/<%= project.id %>/texts">
+        <input type="text" name="source_name" placeholder="ชื่อแหล่งข้อมูล เช่น gem.csv (ไม่บังคับ)" />
+        <textarea name="texts" placeholder="1 ข้อความต่อ 1 บรรทัด" rows="5" required></textarea>
+        <button type="submit">นำเข้า</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>เอกสารในโปรเจกต์นี้</h3>
+      <% if (documents.length === 0) { %>
+        <p class="muted">ยังไม่มีเอกสาร</p>
+      <% } else { %>
+        <table>
+          <thead><tr><th>ไฟล์</th><th>หน้า</th><th>chunk</th><th>สถานะ</th></tr></thead>
+          <tbody>
+            <% documents.forEach(function (d) { %>
+              <tr>
+                <td><%= d.original_filename %></td>
+                <td><%= d.page_count ?? '-' %></td>
+                <td><%= d.chunk_count %></td>
+                <td>
+                  <span class="badge <%= d.status === 'FAILED' ? 'badge-failed' : 'badge-done' %>"><%= d.status %></span>
+                  <% if (d.error_message) { %><div class="muted"><%= d.error_message %></div><% } %>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+
+    <div class="card">
+      <h3>รัน pipeline (embed + UMAP + clustering + naming)</h3>
+      <form method="post" action="/projects/<%= project.id %>/runs">
+        <label class="muted">LLM backend สำหรับตั้งชื่อ cluster (เว้นว่าง = ใช้ default จาก .env)</label>
+        <select name="llm_backend">
+          <option value="">default</option>
+          <option value="openai">openai</option>
+          <option value="ollama">ollama</option>
+        </select>
+        <button type="submit">เริ่มรัน</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>ประวัติการรัน</h3>
+      <% if (runs.length === 0) { %>
+        <p class="muted">ยังไม่เคยรัน</p>
+      <% } else { %>
+        <table>
+          <thead><tr><th>สร้างเมื่อ</th><th>สถานะ</th><th>LLM</th><th></th></tr></thead>
+          <tbody>
+            <% runs.forEach(function (r) { %>
+              <tr>
+                <td class="muted"><%= new Date(r.created_at).toLocaleString() %></td>
+                <td><span class="badge badge-<%= r.status.toLowerCase() %>"><%= r.status %></span></td>
+                <td><%= r.llm_backend %></td>
+                <td><a href="/projects/<%= project.id %>/runs/<%= r.id %>">ดูผล →</a></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+
+    <div class="card">
+      <h3>Semantic search</h3>
+      <a href="/projects/<%= project.id %>/search">ไปหน้าค้นหา →</a>
+    </div>
+  </div>
+</body>
+</html>

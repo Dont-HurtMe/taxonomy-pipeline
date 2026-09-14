@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <title>Taxonomy — Run <%= run.id %></title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <% if (results) { %>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <% } %>
+</head>
+<body>
+  <div class="container">
+    <a href="/projects/<%= project_id %>">&larr; กลับโปรเจกต์</a>
+    <h1>Taxonomy — สารบัญ</h1>
+
+    <nav class="tabnav">
+      <a href="/projects/<%= project_id %>/runs/<%= run.id %>">Interactive Visualization (2D scatter)</a>
+      <a class="active" href="/projects/<%= project_id %>/runs/<%= run.id %>/taxonomy">Taxonomy (สารบัญ)</a>
+    </nav>
+
+    <p>สถานะ run: <span class="badge badge-<%= run.status.toLowerCase() %>"><%= run.status %></span></p>
+
+    <% if (!results) { %>
+      <div class="card">
+        <p class="muted">pipeline ยังไม่เสร็จ กลับมาดูใหม่ตอน run นี้สถานะ DONE</p>
+      </div>
+    <% } else {
+      const nameByCluster = {};
+      results.clusters.forEach(function (c) { nameByCluster[c.cluster_id] = c.name; });
+
+      const membersByCluster = {};
+      const bridgePoints = [];
+      results.assignments.forEach(function (a) {
+        if (a.cluster_id === -2) { bridgePoints.push(a); return; }
+        if (a.cluster_id < 0) return; // noise (-1) ไม่มีในสารบัญ
+        if (!membersByCluster[a.cluster_id]) membersByCluster[a.cluster_id] = [];
+        membersByCluster[a.cluster_id].push(a);
+      });
+    %>
+      <div class="card">
+        <h3>แผนภาพต้นไม้ taxonomy</h3>
+        <p class="muted">
+          ตอนนี้มี 1 ชั้น (root → cluster) — พอมี multi-level hierarchy ทีหลัง แผนภาพนี้จะลึกขึ้นเองโดยไม่ต้องแก้โค้ดส่วนนี้
+        </p>
+        <div id="tree" style="height:480px"></div>
+      </div>
+
+      <div class="card">
+        <p class="muted">
+          แต่ละหัวข้อ = 1 cluster, คลิกเพื่อดูรายการ citation (chunk ต้นฉบับ) ที่เป็นสมาชิก —
+          มาจากผลรัน pipeline นี้โดยตรง (<%= results.clusters.length %> หัวข้อ, <%= results.assignments.length %> chunk รวม)
+        </p>
+
+        <% results.clusters.forEach(function (c) { %>
+          <details>
+            <summary><strong>C<%= c.cluster_id %>: <%= c.name %></strong> <span class="muted">(<%= c.size %> chunk)</span></summary>
+            <table>
+              <thead><tr><th>doc id</th><th>หน้า</th><th>text</th></tr></thead>
+              <tbody>
+                <% (membersByCluster[c.cluster_id] || []).forEach(function (m) { %>
+                  <tr>
+                    <td class="muted"><%= m.document_id %></td>
+                    <td><%= m.page_number ?? '-' %></td>
+                    <td><%= m.text %></td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </details>
+        <% }); %>
+      </div>
+
+      <div class="card">
+        <h3>Cross-reference (bridge point)</h3>
+        <p class="muted">จุดที่อยู่ระหว่างมากกว่า 1 หัวข้อ — ไม่ใช่ noise แต่เป็นตัวเชื่อมข้ามบท (ดู docs section 10-11)</p>
+        <% if (bridgePoints.length === 0) { %>
+          <p class="muted">ไม่มี bridge point ใน run นี้</p>
+        <% } else { %>
+          <table>
+            <thead><tr><th>doc id</th><th>หน้า</th><th>text</th><th>เชื่อมระหว่าง</th></tr></thead>
+            <tbody>
+              <% bridgePoints.forEach(function (b) { %>
+                <tr>
+                  <td class="muted"><%= b.document_id %></td>
+                  <td><%= b.page_number ?? '-' %></td>
+                  <td><%= b.text %></td>
+                  <td>
+                    <% (b.bridge_between || []).forEach(function (cid) { %>
+                      <span class="badge badge-pending">C<%= cid %>: <%= nameByCluster[cid] || cid %></span>
+                    <% }); %>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        <% } %>
+      </div>
+
+      <script>
+        (function () {
+          const clusters = <%- JSON.stringify(results.clusters) %>;
+          Plotly.newPlot("tree", [{
+            type: "treemap",
+            labels: ["Taxonomy"].concat(clusters.map(function (c) { return "C" + c.cluster_id + ": " + c.name; })),
+            parents: [""].concat(clusters.map(function () { return "Taxonomy"; })),
+            values: [0].concat(clusters.map(function (c) { return c.size; })),
+            branchvalues: "total",
+            textinfo: "label+value",
+          }], { margin: { t: 10, l: 0, r: 0, b: 0 } });
+        })();
+      </script>
+    <% } %>
+  </div>
+</body>
+</html>

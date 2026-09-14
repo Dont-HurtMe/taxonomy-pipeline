@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <title>Run <%= run.id %> — Taxonomy Pipeline</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <% if (results) { %>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <% } %>
+</head>
+<body>
+  <div class="container">
+    <a href="/projects/<%= project_id %>">&larr; กลับโปรเจกต์</a>
+    <h1>ผลการรัน pipeline</h1>
+
+    <nav class="tabnav">
+      <a class="active" href="/projects/<%= project_id %>/runs/<%= run.id %>">Interactive Visualization (2D scatter)</a>
+      <a href="/projects/<%= project_id %>/runs/<%= run.id %>/taxonomy">Taxonomy (สารบัญ)</a>
+    </nav>
+
+    <p>สถานะ: <span class="badge badge-<%= run.status.toLowerCase() %>"><%= run.status %></span></p>
+
+    <% if (run.status === 'FAILED') { %>
+      <div class="card"><strong>error:</strong> <%= run.error_message %></div>
+    <% } %>
+
+    <% if (!results) { %>
+      <div class="card">
+        <p>กำลังประมวลผล — step ปัจจุบัน: <strong><%= run.current_step || run.status %></strong></p>
+        <p class="muted">หน้านี้จะ refresh อัตโนมัติทุก 4 วินาที จนกว่าจะเสร็จ</p>
+      </div>
+      <script>
+        setTimeout(function () { window.location.reload(); }, 4000);
+      </script>
+    <% } else { %>
+      <div class="card">
+        <h3>Taxonomy scatter (จุดเพชร = bridge point, จุดเทา = noise)</h3>
+        <input type="text" id="mapSearch" placeholder="ค้นหาข้อความในจุด เช่น ข้าวไทย ..." autocomplete="off" />
+        <div class="map-layout">
+          <div class="filter-panel">
+            <strong>Filter cluster</strong>
+            <div class="muted" style="margin-bottom:0.4rem">
+              <a href="#" id="filterAll">all</a> / <a href="#" id="filterNone">none</a>
+            </div>
+            <div id="filterList"></div>
+          </div>
+          <div id="scatter"></div>
+          <div class="detail-panel">
+            <strong>รายละเอียดจุด</strong>
+            <div id="pointDetail" class="muted">คลิกจุดบนแผนที่เพื่อดูรายละเอียด</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Cluster</h3>
+        <table>
+          <thead><tr><th>id</th><th>ชื่อ</th><th>จำนวนจุด</th></tr></thead>
+          <tbody>
+            <% results.clusters.forEach(function (c) { %>
+              <tr><td><%= c.cluster_id %></td><td><%= c.name %></td><td><%= c.size %></td></tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>UMAP grid search ranking</h3>
+        <table>
+          <thead><tr><th>n_neighbors</th><th>min_dist</th><th>silhouette</th><th>davies_bouldin</th><th>entropy</th><th>score</th></tr></thead>
+          <tbody>
+            <% results.umap_grid.forEach(function (g) { %>
+              <tr>
+                <td><%= g.n_neighbors %></td><td><%= g.min_dist %></td>
+                <td><%= g.silhouette.toFixed(3) %></td><td><%= g.davies_bouldin.toFixed(3) %></td>
+                <td><%= g.entropy.toFixed(3) %></td><td><%= g.score.toFixed(3) %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+
+      <script>
+        window.__RESULTS__ = <%- JSON.stringify(results) %>;
+      </script>
+      <script src="/js/scatter.js"></script>
+    <% } %>
+  </div>
+</body>
+</html>
