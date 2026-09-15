@@ -67,10 +67,36 @@ services:
     ports:
       - "${MLFLOW_PORT}:5000"
 
+  pipeline:
+    build: ./pipeline
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      qdrant:
+        condition: service_started
+      mlflow:
+        condition: service_started
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+
   backend:
     build: ./backend
     restart: unless-stopped
     env_file: .env
+    environment:
+      # ต้องมี credential นี้เพื่อ mlflow.artifacts.download_artifacts() ดึง parquet ผลลัพธ์กลับจาก
+      # MinIO ตอน GET /runs/{id}/results — เดิม v1 ไม่มีเพราะยังไม่ log artifact (ดู README)
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,6 +105,8 @@ services:
       qdrant:
         condition: service_started
       mlflow:
+        condition: service_started
+      pipeline:
         condition: service_started
     volumes:
       - hf_cache:/root/.cache/huggingface

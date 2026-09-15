@@ -45,7 +45,7 @@ class RunCreate(BaseModel):
 
 
 class RunOut(BaseModel):
-    id: uuid.UUID
+    id: str  # mlflow run_id (hex string) — ไม่ใช่ uuid.UUID ของเราเองแล้ว
     status: str
     current_step: str
     llm_backend: str

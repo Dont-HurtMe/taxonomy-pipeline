@@ -6,17 +6,11 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://taxonomy:taxonomy@postgres:5432/taxonomy"
 
-    minio_endpoint: str = "minio:9000"
-    minio_root_user: str = "minioadmin"
-    minio_root_password: str = "minioadmin"
-    minio_bucket: str = "taxonomy-documents"
-    minio_secure: bool = False
-
     qdrant_url: str = "http://qdrant:6333"
     qdrant_api_key: str = ""
 
     mlflow_tracking_uri: str = "http://mlflow:5000"
-    pipeline_url: str = "http://pipeline:8001"
+    mlflow_bucket: str = "mlflow-artifacts"
 
     embed_model_name: str = "BAAI/bge-m3"
     embed_prompt: str = "จงพิจารณาข้อความนี้เพื่อจัดหมวดหมู่ตามประเภทของปัญหาหรือภัยพิบัติ: "
@@ -43,7 +37,11 @@ class Settings(BaseSettings):
     ollama_model: str = "gemma3:27b"
     ollama_host: str = "http://host.docker.internal:11434"
 
-    cors_origins: str = "http://localhost"
+    @property
+    def database_url_sync(self) -> str:
+        # service นี้อ่าน chunk อย่างเดียวด้วย sync engine ธรรมดา (ไม่ต้อง async event loop
+        # เหมือน backend) — แปลง driver จาก asyncpg เป็น psycopg2 แต่ยังชี้ DB เดียวกับ backend
+        return self.database_url.replace("+asyncpg", "+psycopg2")
 
     @property
     def umap_n_neighbors_list(self) -> list[int]:
@@ -56,10 +54,6 @@ class Settings(BaseSettings):
     @property
     def bridge_rel_threshold_value(self) -> float | None:
         return float(self.bridge_rel_threshold) if self.bridge_rel_threshold.strip() else None
-
-    @property
-    def cors_origins_list(self) -> list[str]:
-        return [v.strip() for v in self.cors_origins.split(",") if v.strip()]
 
 
 settings = Settings()
