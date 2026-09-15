@@ -10,6 +10,7 @@ Port ของ pipeline ใน `lab/` (chunk → embed → UMAP → `KDEWatershe
 - **Qdrant** — เก็บ embedding vector มิติสูง (bge-m3) ต่อ project ไว้ทำ semantic search — แยกจาก 2D UMAP coordinate ที่อยู่ใน Postgres โดยเจตนา (ดู `docs/` section 3: search ต้องใช้ vector มิติสูง ไม่ใช่ projection ที่ lossy)
 - **frontend/** — Node.js + Express + EJS (server-rendered, ไม่มี build step) เรียก backend ผ่าน REST API
 - **nginx** — reverse proxy หน้าเดียว (`/` → frontend, `/api/` → backend) เผื่อ scale-out backend หลาย replica ทีหลัง
+- **mlflow/** — MLflow tracking server แยก service ต่างหาก (ไม่ embed ใน backend) — backend store = database `mlflow` บน Postgres instance เดียวกัน (คนละ database จาก app, สร้างผ่าน `postgres/init-mlflow-db.sql`), artifact store = MinIO bucket `${MLFLOW_BUCKET}` เก็บ param/metric ของแต่ละ `PipelineRun` ไว้เทียบกันข้ามเวลา — log แบบ best-effort เท่านั้น ถ้า MLflow เข้าไม่ถึง pipeline หลักยังรันต่อได้ปกติ (ดู `backend/app/services/experiment_tracking.py`)
 
 ## รัน
 
@@ -18,7 +19,9 @@ cd webapp
 docker compose up --build
 ```
 
-เปิด `http://localhost` (nginx) — หรือ backend ตรง ๆ ที่ `:8000`, frontend ตรง ๆ ที่ `:3000`, MinIO console ที่ `:9001`
+เปิด `http://localhost` (nginx) — หรือ backend ตรง ๆ ที่ `:8000`, frontend ตรง ๆ ที่ `:3000`, MinIO console ที่ `:9001`, MLflow UI ที่ `:5001`
+
+**หมายเหตุ deploy ทับของเดิม**: `postgres/init-mlflow-db.sql` รันแค่ตอน postgres container สร้าง data dir ครั้งแรก ถ้าเคย `docker compose up` มาก่อนหน้านี้ (มี `postgres_data` volume อยู่แล้ว) ต้องสร้าง database `mlflow` เองด้วยมือ: `docker compose exec postgres psql -U ${POSTGRES_USER} -c "CREATE DATABASE mlflow;"`
 
 ค่า default ใน `.env` ตั้งไว้ให้รันได้ทันทีโดยไม่ต้องมี API key ใด ๆ: `LLM_BACKEND=openai` แต่ `OPENAI_API_KEY` ว่าง → LLM health check ล้มเหลว → **fallback เป็น TF-IDF keyword ตั้งชื่อ cluster อัตโนมัติ** (ไม่ error) ถ้าต้องการชื่อ cluster จาก LLM จริง ใส่ `OPENAI_API_KEY` หรือสลับ `LLM_BACKEND=ollama` (ต้องมี ollama server ให้ backend เข้าถึงได้ตาม `OLLAMA_HOST`)
 
@@ -45,3 +48,4 @@ docker compose up --build
 - **Auth/multi-user** — ไม่มีระบบ login แยกสิทธิ์ต่อ user ตอนนี้ (ทุกคนที่เข้าถึง URL ใช้ระบบร่วมกัน)
 - **DB migration tool (Alembic)** — ใช้ `Base.metadata.create_all()` ตอน startup แทน ไม่มี migration history และ**ไม่แก้ schema ตารางที่มีอยู่แล้ว** (แค่สร้างตารางที่ยังไม่มี) ถ้าเคย `docker compose up` ไปแล้วครั้งหนึ่งบน DB ที่มีข้อมูลจริง แล้ว pull โค้ดใหม่ที่เพิ่ม column (เช่น `current_step`) ต้อง `ALTER TABLE` มือ หรือลบ volume `postgres_data` แล้วเริ่มใหม่ (ข้อมูลหาย) ถ้า schema เปลี่ยนบ่อยขึ้นควรสลับไป Alembic
 - Use case อื่นใน `docs/hierarchical-taxonomy-concept.md` section 12 (gap analysis, conflict check, ฯลฯ) — ยังเป็น backlog ทั้งหมด
+- **MLflow artifact logging** — v1 log แค่ `params`/`metrics` (การตั้งค่า pipeline + ผลลัพธ์สรุปของ best UMAP param, จำนวน cluster/bridge/noise) ยังไม่ log artifact (เช่น scatter plot, ranking table เต็ม, model registry) เพราะ artifact ต้องให้ backend มี credential ไปเขียน MinIO ตรง ๆ เพิ่ม (ตอนนี้ backend container ไม่ได้ตั้ง `AWS_ACCESS_KEY_ID`/`MLFLOW_S3_ENDPOINT_URL` ไว้ เพราะยังไม่ log artifact) เพิ่มทีหลังได้ง่ายถ้าต้องการ

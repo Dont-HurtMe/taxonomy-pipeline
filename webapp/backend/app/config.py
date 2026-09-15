@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://qdrant:6333"
     qdrant_api_key: str = ""
 
+    mlflow_tracking_uri: str = "http://mlflow:5000"
+
     embed_model_name: str = "BAAI/bge-m3"
     embed_prompt: str = "จงพิจารณาข้อความนี้เพื่อจัดหมวดหมู่ตามประเภทของปัญหาหรือภัยพิบัติ: "
     embed_device: str = ""

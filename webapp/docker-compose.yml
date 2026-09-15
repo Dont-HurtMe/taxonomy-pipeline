@@ -8,6 +8,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init-mlflow-db.sql:/docker-entrypoint-initdb.d/init-mlflow-db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -15,7 +16,7 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:RELEASE.2024-01-16T16-07-38Z
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -32,7 +33,7 @@ services:
       retries: 10
 
   minio-init:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:RELEASE.2024-01-13T08-44-48Z
     depends_on:
       minio:
         condition: service_healthy
@@ -40,7 +41,8 @@ services:
       /bin/sh -c "
       mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} &&
       mc mb -p local/${MINIO_BUCKET} || true &&
-      mc anonymous set download local/${MINIO_BUCKET}
+      mc anonymous set download local/${MINIO_BUCKET} &&
+      mc mb -p local/${MLFLOW_BUCKET} || true
       "
 
   qdrant:
@@ -48,6 +50,22 @@ services:
     restart: unless-stopped
     volumes:
       - qdrant_data:/qdrant/storage
+
+  mlflow:
+    build: ./mlflow
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    ports:
+      - "${MLFLOW_PORT}:5000"
 
   backend:
     build: ./backend
@@ -59,6 +77,8 @@ services:
       minio:
         condition: service_healthy
       qdrant:
+        condition: service_started
+      mlflow:
         condition: service_started
     volumes:
       - hf_cache:/root/.cache/huggingface
